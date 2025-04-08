@@ -1538,6 +1538,7 @@ class BotRecruiter(Recruiter):
     def on_completion_event(self):
         return "BotAssignmentSubmitted"
 
+
     def _get_bot_factory(self):
         # Must be imported at run-time
         from dallinger_experiment.experiment import Bot
@@ -1553,6 +1554,9 @@ class MultiRecruiter(Recruiter):
 
     def __init__(self):
         super(MultiRecruiter, self).__init__()
+        # EDITED
+        self.config = get_config()
+        # ----
         self.spec = self.parse_spec()
 
     def parse_spec(self):
@@ -1648,6 +1652,22 @@ class MultiRecruiter(Recruiter):
         for name in set(name for name, count in self.spec):
             recruiter = by_name(name)
             recruiter.close_recruitment()
+    
+    # EDITED
+    def approve_hit(self, assignment_id):
+        return True
+    
+    def exit_response(self, experiment, participant):
+        """Exit response for both bots and CLI."""
+        return flask.render_template(
+            "exit_recruiter.html",
+            hitid=participant.hit_id,
+            assignmentid=participant.assignment_id,
+            workerid=participant.worker_id,
+            external_submit_url=self.external_submission_url,
+        )
+        
+    # -----
 
 
 def for_experiment(experiment):
