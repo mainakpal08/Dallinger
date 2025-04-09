@@ -302,11 +302,10 @@ class HighPerformanceBotBase(BotBase):
         """
         self.log("Bot player completing experiment. Status: {}".format(status))
         while True:
-            url = "{host}/{status}?participant_id={participant_id}".format(
-                host=self.host, participant_id=self.participant_id, status=status
-            )
+            url = "{host}/{status}".format(host=self.host, status=status)
+            data = {'participant_id': self.participant_id}
             try:
-                result = requests.get(url)
+                result = requests.post(url, data=data)
                 result.raise_for_status()
             except RequestException:
                 self.stochastic_sleep()
