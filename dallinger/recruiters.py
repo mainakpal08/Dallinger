@@ -1773,6 +1773,15 @@ class MultiRecruiter(Recruiter):
             external_submit_url=self.external_submission_url,
         )
         
+    def on_task_completion(self):
+        """In our case, the task submission is implicitly complete, since we
+        have nothing to do.
+        """
+        return {
+            "new_status": "submitted",
+            "action": "RecruiterSubmissionComplete",
+        }
+        
 
 
 def for_experiment(experiment):
