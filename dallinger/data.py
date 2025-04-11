@@ -17,6 +17,7 @@ import botocore
 import postgres_copy
 import psycopg2
 import six
+import tablib
 
 from dallinger import db, models
 from dallinger.compat import open_for_csv
