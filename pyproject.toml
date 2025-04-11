@@ -69,6 +69,7 @@ dependencies = [
     "urllib3 < 2",
     "user-agents",
     "yaspin",
+    "tablib[all]"
 ]
 
 [project.optional-dependencies]
