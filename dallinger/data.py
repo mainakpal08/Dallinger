@@ -263,7 +263,7 @@ def export_db_uri(id, db_uri, local, scrub_pii):
     cwd = os.getcwd()
     data_filename = "{}-data.zip".format(id)
     path_to_data = os.path.join(cwd, "data", data_filename)
-
+    '''
     # Backup data on S3 unless run locally
     if not local:
         bucket = user_s3_bucket()
@@ -284,6 +284,7 @@ def export_db_uri(id, db_uri, local, scrub_pii):
             )
         except AttributeError:
             raise S3BucketUnavailable("Could not find an S3 bucket!")
+    '''
 
     return path_to_data
 
