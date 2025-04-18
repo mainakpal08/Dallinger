@@ -1665,6 +1665,8 @@ class MultiRecruiter(Recruiter):
         super(MultiRecruiter, self).__init__()
         self.config = get_config()
         self.spec = self.parse_spec()
+        # Cache recruiter instances by name
+        self._recruiter_instances = {}
 
     def parse_spec(self):
         """Parse the specification of how to recruit participants.
@@ -1672,97 +1674,93 @@ class MultiRecruiter(Recruiter):
         Example: recruiters = bots: 5, mturk: 1
         """
         recruiters = []
-        spec = get_config().get("recruiters")
+        spec = self.config.get("recruiters")
+        if not spec:
+            raise ValueError("No recruiters specified in config.")
         for match in self.SPEC_RE.finditer(spec):
             name = match.group(1)
             count = int(match.group(2))
             recruiters.append((name, count))
         return recruiters
 
+    def get_recruiter(self, name):
+        """Return a cached recruiter instance by name."""
+        if name not in self._recruiter_instances:
+            self._recruiter_instances[name] = by_name(name)
+        return self._recruiter_instances[name]
+
     def recruiters(self, n=1):
         """Iterator that provides recruiters along with the participant
         count to be recruited for up to `n` participants.
-
-        We use the `Recruitment` table in the db to keep track of
-        how many recruitments have been requested using each recruiter.
-        We'll use the first one from the specification that
-        hasn't already reached its quota.
         """
         recruit_count = 0
-        while recruit_count <= n:
-            counts = dict(
-                session.query(Recruitment.recruiter_id, func.count(Recruitment.id))
-                .group_by(Recruitment.recruiter_id)
-                .all()
-            )
-            for recruiter_id, target_count in self.spec:
-                remaining = 0
-                count = counts.get(recruiter_id, 0)
-                if count >= target_count:
-                    # This recruiter quota was reached;
-                    # move on to the next one.
-                    counts[recruiter_id] = count - target_count
-                    continue
-                else:
-                    # Quota is still available; let's use it.
-                    remaining = target_count - count
-                    break
-            else:
-                return
-
-            num_recruits = min(n - recruit_count, remaining)
-            # record the recruitments and commit
-            for i in range(num_recruits):
+        # Get current recruitment counts from DB
+        # counts = dict(
+        #     session.query(Recruitment.recruiter_id, func.count(Recruitment.id))
+        #     .group_by(Recruitment.recruiter_id)
+        #     .all()
+        # )
+        counts = {recruiter_id: 0 for recruiter_id, _ in self.spec}
+        for recruiter_id, target_count in self.spec:
+            current = counts.get(recruiter_id, 0)
+            available = max(0, target_count - current)
+            if available <= 0:
+                continue
+            to_recruit = min(n - recruit_count, available)
+            if to_recruit <= 0:
+                continue
+            # Record the recruitments and commit
+            for _ in range(to_recruit):
                 session.add(Recruitment(recruiter_id=recruiter_id))
             session.commit()
-
-            recruit_count += num_recruits
-            yield by_name(recruiter_id), num_recruits
+            yield self.get_recruiter(recruiter_id), to_recruit
+            recruit_count += to_recruit
+            if recruit_count >= n:
+                break
 
     def open_recruitment(self, n=1):
         """Return initial experiment URL list."""
         logger.info("Multi recruitment running for {} participants".format(n))
         recruitments = []
-        messages = {}
+        messages = []
         remaining = n
         for recruiter, count in self.recruiters(n):
             if not count:
-                break
-            if recruiter.nickname in messages:
-                result = recruiter.recruit(count)
-                recruitments.extend(result)
-            else:
-                result = recruiter.open_recruitment(count)
-                recruitments.extend(result["items"])
-                messages[recruiter.nickname] = result["message"]
-
+                continue
+            result = recruiter.open_recruitment(count)
+            # result may be a dict with 'items' and 'message'
+            recruitments.extend(result.get("items", []))
+            msg = result.get("message")
+            if msg:
+                messages.append(f"{recruiter.nickname}: {msg}")
             remaining -= count
             if remaining <= 0:
                 break
 
         logger.info(
             (
-                "Multi-recruited {} out of {} participants, " "using {} recruiters."
+                "Multi-recruited {} out of {} participants, using {} recruiters."
             ).format(n - remaining, n, len(messages))
         )
 
-        return {"items": recruitments, "message": "\n".join(messages.values())}
+        return {"items": recruitments, "message": "\n".join(messages)}
 
     def recruit(self, n=1):
         """For multi recruitment recruit and open_recruitment
         have the same logic. We may need to open recruitment on any of our
         sub-recruiters at any point in recruitment.
         """
+        # Just return the URLs, not the message
         return self.open_recruitment(n)["items"]
 
     def close_recruitment(self):
-        for name in set(name for name, count in self.spec):
-            recruiter = by_name(name)
+        for name, _ in self.spec:
+            recruiter = self.get_recruiter(name)
             recruiter.close_recruitment()
 
     def approve_hit(self, assignment_id):
         return True
-    
+
     def exit_response(self, experiment, participant):
         """Exit response for both bots and CLI."""
         return flask.render_template(
@@ -1772,7 +1770,7 @@ class MultiRecruiter(Recruiter):
             workerid=participant.worker_id,
             external_submit_url=self.external_submission_url,
         )
-        
+
     def on_task_completion(self):
         """In our case, the task submission is implicitly complete, since we
         have nothing to do.
