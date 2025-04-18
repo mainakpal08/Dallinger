@@ -426,6 +426,7 @@ def launch():
             recruitment_details = exp.recruiter.open_recruitment(
                 n=exp.initial_recruitment_size
             )
+            print("MAAAAAAAAINNNNNAAAAAAKKKKKKKKKK")
             session.commit()
         except Exception as e:
             return error_response(
@@ -467,6 +468,7 @@ def launch():
             # channel for messages about websocket
             # connect/disconnect/subscribe/unsubscribe events
             sockets.chat_backend.subscribe(exp, sockets.CONTROL_CHANNEL)
+            print("HELLLLLLLLLLLLLLLLLLLLLLLLLLOOOOOOOOOOOOOOOOOOO")
         except Exception:
             return error_response(
                 error_text="Failed to subscribe to chat for channel on launch "
@@ -668,6 +670,8 @@ def summary():
     if exp.quorum:
         quorum = {"q": exp.quorum, "n": nonfailed_count, "overrecruited": overrecruited}
         db.queue_message(WAITING_ROOM_CHANNEL, dumps(quorum))
+
+    print("SUMMARY is CALLLLLLLLLLLLLLLED")
 
     return Response(dumps(state), status=200, mimetype="application/json")
 
@@ -888,13 +892,14 @@ def create_participant(worker_id, hit_id, assignment_id, mode, entry_information
         q.enqueue(worker_function, "AssignmentReassigned", None, duplicate.id)
 
     # Count working or beyond participants.
+    # EDITED: MAINAK
     nonfailed_count = (
         models.Participant.query.filter(
             (models.Participant.status == "working")
-            | (models.Participant.status == "recruiter_submission_started")
-            | (models.Participant.status == "overrecruited")
-            | (models.Participant.status == "submitted")
-            | (models.Participant.status == "approved")
+        #    | (models.Participant.status == "recruiter_submission_started")
+        #    | (models.Participant.status == "overrecruited")
+        #    | (models.Participant.status == "submitted")
+        #    | (models.Participant.status == "approved")
         ).count()
         + 1
     )
